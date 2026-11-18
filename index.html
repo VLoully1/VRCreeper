@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="uk">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <title>VR Creeper — Minecraft 6DoF</title>
+  <script src="https://aframe.io/releases/1.6.0/aframe.min.js"></script>
+  <style>
+    *{box-sizing:border-box}body{margin:0;overflow:hidden;background:#101c26;color:#f4fff4;font-family:system-ui,-apple-system,Segoe UI,sans-serif}
+    #start{position:fixed;inset:0;z-index:20;display:grid;place-items:center;background:linear-gradient(140deg,rgba(6,22,16,.88),rgba(5,17,29,.83));padding:20px;text-align:center}
+    #intro{max-width:510px;padding:28px 25px;background:rgba(8,25,18,.92);border:2px solid #4fbc54;border-radius:16px;box-shadow:0 20px 70px #0009}
+    #intro h1{margin:0 0 9px;font-size:clamp(27px,5vw,43px);color:#90f369;letter-spacing:2px}#intro p{line-height:1.5;color:#d7ead7}
+    button{font:inherit;cursor:pointer;border:0;border-radius:9px;font-weight:700}
+    #launch{background:#78e35d;color:#102513;font-size:19px;padding:15px 42px;margin:12px 0 6px}#launch:hover{background:#a3fb86}
+    .help{font-size:13px;opacity:.85}
+    #hud{display:none;position:fixed;z-index:10;inset:0;pointer-events:none}
+    #controls{position:absolute;left:14px;top:14px;max-width:min(370px,calc(100% - 28px));background:#071610b8;border:1px solid #70c97088;padding:12px 15px;border-radius:9px;font-size:13px;line-height:1.55}
+    #controls strong{color:#a6f38f}#status{color:#cff9ce;font-variant-numeric:tabular-nums;margin-top:6px}
+    #mode{pointer-events:auto;position:absolute;right:14px;top:14px;background:#103823e8;color:#eaffdf;border:1px solid #82df75;padding:11px 14px}
+    #hints{position:absolute;bottom:12px;left:50%;transform:translateX(-50%);background:#081d16bb;padding:8px 12px;border-radius:9px;text-align:center;font-size:12px;white-space:nowrap}
+    #touch{display:none;position:absolute;inset:auto 0 48px 0;justify-content:space-between;padding:0 15px;pointer-events:none}
+    .touch-cluster{display:grid;grid-template-columns:repeat(3,43px);gap:5px;pointer-events:auto}
+    .touch-cluster button{min-height:43px;background:#102d23ce;border:1px solid #83d28a;color:white;touch-action:none}
+    .touch-cluster .blank{visibility:hidden}
+    @media (pointer:coarse){#touch{display:flex}#controls{font-size:11px;max-width:230px}#hints{display:none}}
+    @media (max-width:480px){#controls{max-height:200px;overflow:auto}#mode{top:auto;bottom:9px;right:12px}#touch{bottom:67px}}
+  </style>
+</head>
+<body>
+  <div id="start"><div id="intro">
+    <h1>VR CREEPER</h1><p>Повністю віртуальний Minecraft-світ. Керуй кріпером у шести ступенях свободи (6DoF) та перемикай камеру.</p>
+    <button id="launch">▶ ЗАПУСТИТИ</button>
+    <p class="help">Працює у браузері на комп'ютері й телефоні. Для першого запуску потрібен інтернет, щоб завантажити A-Frame.</p>
+  </div></div>
+  <div id="hud">
+    <div id="controls"><strong>Керування 6DoF</strong><div>W / S — вперед / назад (X)</div><div>A / D — ліворуч / праворуч (Y)</div><div>Пробіл / Shift — вгору / вниз (Z)</div><div>↑ / ↓ — Pitch; ← / → — Yaw</div><div>Q / E — Roll (нахил убік)</div><div>Миша + утримання кнопки — огляд</div><div>V — камера 1-ї / 3-ї особи · R — скинути нахили</div><div id="status">Камера: третя особа</div></div>
+    <button id="mode">📷 3-тя особа (V)</button>
+    <div id="hints">Minecraft • 6DoF • Переміщення X/Y/Z + Pitch/Yaw/Roll</div>
+    <div id="touch"><div class="touch-cluster">
+      <button class="blank"></button><button data-key="KeyW">▲</button><button class="blank"></button>
+      <button data-key="KeyA">◀</button><button data-key="KeyS">▼</button><button data-key="KeyD">▶</button>
+      <button data-key="Space">↑ Z</button><button data-key="ShiftLeft">↓ Z</button><button data-key="KeyV">📷</button>
+    </div><div class="touch-cluster">
+      <button data-key="ArrowUp">P+</button><button data-key="KeyQ">R−</button><button data-key="ArrowLeft">Y−</button>
+      <button data-key="ArrowDown">P−</button><button data-key="KeyE">R+</button><button data-key="ArrowRight">Y+</button>
+    </div></div>
+  </div>
+  <a-scene id="scene" embedded vr-mode-ui="enabled: true" renderer="antialias: true; colorManagement: true" background="color: #87c9ff" fog="type: linear; color: #9ed2fb; near: 30; far: 83" loading-screen="enabled: false">
+    <a-assets timeout="20000"><a-asset-item id="creeperAsset" src="./assets/creeper.glb"></a-asset-item></a-assets>
+    <a-entity id="sun" light="type: directional; color: #fff4d1; intensity: 1.15" position="-20 35 -24"></a-entity>
+    <a-entity light="type: ambient; color: #bce5ff; intensity: 0.75"></a-entity>
+    <a-entity id="world"></a-entity>
+    <a-entity id="player" position="0 0 0">
+      <a-entity id="creeper" gltf-model="#creeperAsset" scale="0.085 0.085 0.085" rotation="0 180 0"></a-entity>
+    </a-entity>
+    <a-entity id="camera" camera="active: true; fov: 75" look-controls="enabled: false" position="0 2.4 6"></a-entity>
+  </a-scene>
+  <script>
+  (() => {
+    'use strict';
+    const scene=document.getElementById('scene');
+    const world=document.getElementById('world');
+    const player=document.getElementById('player');
+    const creeper=document.getElementById('creeper');
+    const camEl=document.getElementById('camera');
+    const THREE=AFRAME.THREE;
+    const keys=new Set();
+    const state={running:false,first:false,x:0,y:0,z:0,pitch:0,yaw:0,roll:0};
+    let worldReady=false,previous=0,drag=false,px=0,py=0;
+    const rad=Math.PI/180;
+    const clamp=(n,min,max)=>Math.min(max,Math.max(min,n));
+    const seed=(x,z)=>{const k=Math.sin(x*127.1+z*311.7)*43758.5453;return k-Math.floor(k)};
+    const height=(x,z)=>{
+      if(Math.abs(x)<7&&Math.abs(z)<7)return 0;
+      const h=Math.sin(x*.23)*1.2+Math.cos(z*.19)*1.2+Math.sin((x+z)*.12);
+      return Math.max(-2,Math.min(4,Math.round(h)));
+    };
+    function buildWorld(){
+      if(worldReady)return;worldReady=true;
+      const groups={grass:[],dirt:[],stone:[],wood:[],leaf:[],sand:[],cloud:[]};
+      const add=(name,x,y,z,sx=1,sy=1,sz=1)=>groups[name].push([x,y,z,sx,sy,sz]);
+      const R=35;
+      for(let x=-R;x<=R;x++)for(let z=-R;z<=R;z++){
+        const h=height(x,z);const sandy=height(x,z)<=-2;
+        add(sandy?'sand':'grass',x,h-.5,z);
+        add('dirt',x,h-1.5,z);
+        if(h>0)add('stone',x,h-2.5,z);
+        const chance=seed(x,z);
+        if(chance>.989&&Math.abs(x)>9&&Math.abs(z)>8&&h>=-1&&x>-R+4&&x<R-4&&z>-R+4&&z<R-4){
+          const trunk=3+Math.floor(seed(z,x)*2);
+          for(let j=0;j<trunk;j++)add('wood',x,h+j+.5,z);
+          for(let dx=-2;dx<=2;dx++)for(let dz=-2;dz<=2;dz++)for(let dy=0;dy<=2;dy++){
+            if(Math.abs(dx)+Math.abs(dz)+(dy===2?1:0)>3)continue;
+            add('leaf',x+dx,h+trunk-.5+dy,z+dz);
+          }
+        }
+      }
+      for(let i=0;i<22;i++){
+        const x=(seed(i,15)-.5)*105,z=(seed(i,72)-.5)*105,y=13+seed(i,41)*9;
+        add('cloud',x,y,z,5,1.2,2.7);add('cloud',x+2,y+.3,z,3,1.2,3);
+      }
+      const colors={grass:0x60a946,dirt:0x81512c,stone:0x81868b,wood:0x7f5a34,leaf:0x34843a,sand:0xcbb778,cloud:0xf7fcff};
+      const root=world.object3D;
+      const cube=new THREE.BoxGeometry(1,1,1);const dummy=new THREE.Object3D();
+      for(const [kind,items] of Object.entries(groups)){
+        const material=new THREE.MeshLambertMaterial({color:colors[kind],flatShading:true});
+        const mesh=new THREE.InstancedMesh(cube,material,items.length);
+        mesh.frustumCulled=false;
+        for(let i=0;i<items.length;i++){
+          const [x,y,z,sx,sy,sz]=items[i];dummy.position.set(x,y,z);dummy.scale.set(sx,sy,sz);dummy.updateMatrix();mesh.setMatrixAt(i,dummy.matrix);
+        }
+        mesh.instanceMatrix.needsUpdate=true;root.add(mesh);
+      }
+      // Decorative stone path and floating bright markers make spatial motion easier to see.
+      const pathMat=new THREE.MeshLambertMaterial({color:0x9ca4a0});
+      for(let i=-5;i<=5;i++){
+        const b=new THREE.Mesh(new THREE.BoxGeometry(.7,.08,.7),pathMat);
+        b.position.set(i,0.04,-4);root.add(b);
+      }
+    }
+    function updateHud(){
+      const label=state.first?'перша особа':'третя особа';
+      document.getElementById('status').textContent=`Камера: ${label} · X ${state.x.toFixed(1)} Y ${state.y.toFixed(1)} Z ${state.z.toFixed(1)} · Pitch ${Math.round(state.pitch)}° Yaw ${Math.round(state.yaw)}° Roll ${Math.round(state.roll)}°`;
+      document.getElementById('mode').textContent=state.first?'📷 1-ша особа (V)':'📷 3-тя особа (V)';
+    }
+    function toggleCamera(){state.first=!state.first;creeper.object3D.visible=!state.first;updateHud();}
+    function resetRotation(){state.pitch=state.roll=0;updateHud();}
+    document.getElementById('mode').addEventListener('click',toggleCamera);
+    document.getElementById('launch').addEventListener('click',()=>{
+      if(!worldReady)buildWorld();state.running=true;
+      document.getElementById('start').style.display='none';document.getElementById('hud').style.display='block';updateHud();
+    });
+    document.addEventListener('keydown',e=>{
+      if(['Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code))e.preventDefault();
+      if(!keys.has(e.code)&&e.code==='KeyV'&&state.running)toggleCamera();
+      if(!keys.has(e.code)&&e.code==='KeyR')resetRotation();
+      keys.add(e.code);
+    });
+    document.addEventListener('keyup',e=>keys.delete(e.code));
+    window.addEventListener('blur',()=>keys.clear());
+    scene.addEventListener('mousedown',e=>{if(e.button===0){drag=true;px=e.clientX;py=e.clientY;}});
+    window.addEventListener('mouseup',()=>drag=false);
+    window.addEventListener('mousemove',e=>{
+      if(!drag||!state.running)return;
+      state.yaw-=(e.clientX-px)*.19;state.pitch=clamp(state.pitch-(e.clientY-py)*.19,-85,85);px=e.clientX;py=e.clientY;
+    });
+    // Mobile: dragging the scene rotates the character; touch buttons move it.
+    scene.addEventListener('touchstart',e=>{if(e.touches.length===1){drag=true;px=e.touches[0].clientX;py=e.touches[0].clientY;}},{passive:true});
+    scene.addEventListener('touchmove',e=>{if(!drag||!state.running||e.touches.length!==1)return;state.yaw-=(e.touches[0].clientX-px)*.19;state.pitch=clamp(state.pitch-(e.touches[0].clientY-py)*.19,-85,85);px=e.touches[0].clientX;py=e.touches[0].clientY;},{passive:true});
+    scene.addEventListener('touchend',()=>drag=false);
+    document.querySelectorAll('[data-key]').forEach(b=>{
+      const key=b.dataset.key;
+      b.addEventListener('pointerdown',e=>{e.preventDefault();b.setPointerCapture(e.pointerId);if(key==='KeyV')toggleCamera();else keys.add(key);});
+      for(const t of ['pointerup','pointercancel','lostpointercapture'])b.addEventListener(t,()=>keys.delete(key));
+    });
+    const tmpEuler=new THREE.Euler(),quat=new THREE.Quaternion(),tmpVec=new THREE.Vector3();
+    function frame(t){
+      requestAnimationFrame(frame);
+      const dt=Math.min((t-(previous||t))/1000,.06);previous=t;
+      if(!state.running)return;
+      const move=dt*5.2,turn=dt*72;
+      // Conceptual coordinate system: X=forward, Y=right, Z=up.
+      // Three.js world representation: forward=-worldZ, right=worldX, up=worldY.
+      const f=Number(keys.has('KeyW'))-Number(keys.has('KeyS'));
+      const r=Number(keys.has('KeyD'))-Number(keys.has('KeyA'));
+      const u=Number(keys.has('Space'))-Number(keys.has('ShiftLeft')||keys.has('ShiftRight'));
+      const normal=Math.max(1,Math.hypot(f,r,u));
+      const forward=f/normal*move,right=r/normal*move,up=u/normal*move;
+      const yaw=state.yaw*rad;
+      state.x+=forward;state.y+=right;state.z+=up;
+      // Free flying: movement follows yaw + pitch, so the player can move in all 3 directions.
+      const cp=Math.cos(state.pitch*rad),sp=Math.sin(state.pitch*rad);
+      const dx=(-Math.sin(yaw)*cp*forward+Math.cos(yaw)*right);
+      const dz=(-Math.cos(yaw)*cp*forward-Math.sin(yaw)*right);
+      const dy=(sp*forward+up);
+      player.object3D.position.x+=dx;
+      player.object3D.position.z+=dz;
+      player.object3D.position.y=clamp(player.object3D.position.y+dy,-1,35);
+      if(keys.has('ArrowUp'))state.pitch=clamp(state.pitch+turn,-85,85);
+      if(keys.has('ArrowDown'))state.pitch=clamp(state.pitch-turn,-85,85);
+      if(keys.has('ArrowLeft'))state.yaw+=turn;
+      if(keys.has('ArrowRight'))state.yaw-=turn;
+      if(keys.has('KeyQ'))state.roll=clamp(state.roll+turn,-180,180);
+      if(keys.has('KeyE'))state.roll=clamp(state.roll-turn,-180,180);
+      // XYZ relative rotations use yaw around vertical, pitch around sideways, roll around forward.
+      tmpEuler.set(state.pitch*rad,-state.yaw*rad,state.roll*rad,'YXZ');quat.setFromEuler(tmpEuler);
+      const obj=player.object3D;
+      obj.quaternion.copy(quat);
+      const camera=camEl.object3D;
+      if(state.first){
+        tmpVec.set(0,1.85,-.12).applyQuaternion(quat).add(obj.position);
+        camera.position.lerp(tmpVec,Math.min(1,dt*16));
+      }else{
+        tmpVec.set(0,2.4,6).applyQuaternion(quat).add(obj.position);
+        camera.position.lerp(tmpVec,Math.min(1,dt*9));
+      }
+      camera.quaternion.copy(quat);
+      if(Math.floor(t/120)!==Math.floor((t-dt*1000)/120))updateHud();
+    }
+    scene.addEventListener('loaded',()=>{requestAnimationFrame(frame);});
+    // Graceful message when the user opened a file without uploading the model.
+    creeper.addEventListener('model-error',()=>{
+      document.getElementById('status').textContent='Не вдалося завантажити assets/creeper.glb — перевір структуру папок GitHub.';
+    });
+  })();
+  </script>
+</body>
+</html>
