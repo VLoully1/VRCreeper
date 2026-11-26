@@ -1,0 +1,315 @@
+<!doctype html>
+<html lang="uk">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <title>VR Creeper — Збирач кристалів 6DoF</title>
+  <script src="https://aframe.io/releases/1.6.0/aframe.min.js"></script>
+  <style>
+    *{box-sizing:border-box}body{margin:0;overflow:hidden;background:#101c26;color:#f4fff4;font-family:system-ui,-apple-system,Segoe UI,sans-serif}
+    html,body{width:100%;height:100%}#scene{position:fixed;inset:0;width:100%;height:100%;display:block}
+    #start{position:fixed;inset:0;z-index:20;display:grid;place-items:center;background:linear-gradient(140deg,rgba(6,22,16,.88),rgba(5,17,29,.83));padding:20px;text-align:center}
+    #intro{max-width:510px;padding:28px 25px;background:rgba(8,25,18,.92);border:2px solid #4fbc54;border-radius:16px;box-shadow:0 20px 70px #0009}
+    #intro h1{margin:0 0 9px;font-size:clamp(27px,5vw,43px);color:#90f369;letter-spacing:2px}#intro p{line-height:1.5;color:#d7ead7}
+    button{font:inherit;cursor:pointer;border:0;border-radius:9px;font-weight:700}
+    #launch{background:#78e35d;color:#102513;font-size:19px;padding:15px 42px;margin:12px 0 6px}#launch:hover{background:#a3fb86}
+    .help{font-size:13px;opacity:.85}
+    #hud{display:none;position:fixed;z-index:10;inset:0;pointer-events:none}
+    #controls{position:absolute;left:14px;top:14px;max-width:min(370px,calc(100% - 28px));background:#071610b8;border:1px solid #70c97088;padding:12px 15px;border-radius:9px;font-size:13px;line-height:1.55}
+    #controls strong{color:#a6f38f}#status{color:#cff9ce;font-variant-numeric:tabular-nums;margin-top:6px}
+    #mode{pointer-events:auto;position:absolute;right:14px;top:14px;background:#103823e8;color:#eaffdf;border:1px solid #82df75;padding:11px 14px}
+    #hints{position:absolute;bottom:12px;left:50%;transform:translateX(-50%);background:#081d16bb;padding:8px 12px;border-radius:9px;text-align:center;font-size:12px;white-space:nowrap}
+    #mission{position:absolute;right:14px;top:68px;width:min(315px,calc(100vw - 28px));background:#071610d9;border:1px solid #7bcf7c88;padding:12px 14px;border-radius:9px;font-size:13px;line-height:1.5}
+    #mission strong{color:#b1ff91}#objective{margin:7px 0;color:#efffe6}#progress{color:#b8e9ff;font-weight:700}#notice{color:#ffefa1;min-height:20px}
+    #resetGame{pointer-events:auto;margin-top:8px;padding:7px 11px;background:#2b5f37;color:white;border:1px solid #91d984}
+    #finish{display:none;position:fixed;z-index:30;inset:0;background:#091c18d9;place-items:center;text-align:center;padding:20px}
+    #finish>div{padding:30px;background:#112c1d;border:2px solid #a3ef76;border-radius:18px;max-width:430px}#finish h2{color:#b5ff89}
+    #again{padding:12px 23px;background:#91e77d;color:#18321a}
+    #touch{display:none;position:absolute;inset:auto 0 48px 0;justify-content:space-between;padding:0 15px;pointer-events:none}
+    .touch-cluster{display:grid;grid-template-columns:repeat(3,43px);gap:5px;pointer-events:auto}
+    .touch-cluster button{min-height:43px;background:#102d23ce;border:1px solid #83d28a;color:white;touch-action:none}
+    .touch-cluster .blank{visibility:hidden}
+    @media (max-width:750px){#mission{top:auto;bottom:65px;right:10px;width:min(260px,calc(100vw - 245px));font-size:11px}#controls{max-width:230px;font-size:11px}#mission #notice{display:none}}
+    @media (pointer:coarse){#touch{display:flex}#controls{font-size:11px;max-width:230px}#hints{display:none}}
+    @media (max-width:480px){#controls{max-height:200px;overflow:auto}#mode{top:auto;bottom:9px;right:12px}#touch{bottom:67px}}
+  </style>
+</head>
+<body>
+  <div id="start"><div id="intro">
+    <h1>VR CREEPER</h1><p><b>Місія: Енергія порталу!</b> Збери 6 сяючих кристалів, облітаючи дерева та гори. Після цього доберися до активованого порталу. Колізії увімкнено: крізь землю й перешкоди проходити не можна.</p>
+    <button id="launch">▶ ЗАПУСТИТИ</button>
+    <p class="help">Працює у браузері на комп'ютері й телефоні. Для першого запуску потрібен інтернет, щоб завантажити A-Frame.</p>
+  </div></div>
+  <div id="hud">
+    <div id="controls"><strong>Керування 6DoF</strong><div>W / S — вперед / назад (X)</div><div>A / D — ліворуч / праворуч (Y)</div><div>Пробіл / Shift — вгору / вниз (Z)</div><div>↑ / ↓ — Pitch; ← / → — Yaw</div><div>Q / E — Roll (нахил убік)</div><div>Миша + утримання кнопки — огляд</div><div>V — камера 1-ї / 3-ї особи · R — скинути нахили</div><div>Кристали — торкнися, портал — фінальна ціль</div><div id="status">Камера: третя особа</div></div>
+    <button id="mode">📷 3-тя особа (V)</button>
+    <div id="mission"><strong>⚡ МІСІЯ: ЕНЕРГІЯ ПОРТАЛУ</strong><div id="progress">Кристали: 0 / 6</div><div id="objective">Шукай сяючі кристали поблизу!</div><div id="notice">Дерева, рельєф та межі світу мають колізії.</div><button id="resetGame">↻ Почати заново</button></div>
+    <div id="hints">6DoF • Збери 6 кристалів → увійди в портал • Колізії активні</div>
+    <div id="touch"><div class="touch-cluster">
+      <button class="blank"></button><button data-key="KeyW">▲</button><button class="blank"></button>
+      <button data-key="KeyA">◀</button><button data-key="KeyS">▼</button><button data-key="KeyD">▶</button>
+      <button data-key="Space">↑ Z</button><button data-key="ShiftLeft">↓ Z</button><button data-key="KeyV">📷</button>
+    </div><div class="touch-cluster">
+      <button data-key="ArrowUp">P+</button><button data-key="KeyQ">R−</button><button data-key="ArrowLeft">Y−</button>
+      <button data-key="ArrowDown">P−</button><button data-key="KeyE">R+</button><button data-key="ArrowRight">Y+</button>
+    </div></div>
+  </div>
+  <div id="finish"><div><h2>🏆 ПОРТАЛ ЗАПУЩЕНО!</h2><p>Ти зібрав усі 6 кристалів і виконав місію, використовуючи 6 ступенів свободи.</p><button id="again">▶ Грати ще раз</button></div></div>
+  <a-scene id="scene" embedded vr-mode-ui="enabled: true" renderer="antialias: true; colorManagement: true" background="color: #87c9ff" fog="type: linear; color: #9ed2fb; near: 30; far: 83" loading-screen="enabled: false">
+    <a-assets timeout="20000"><a-asset-item id="creeperAsset" src="./assets/creeper.glb"></a-asset-item></a-assets>
+    <a-entity id="sun" light="type: directional; color: #fff4d1; intensity: 1.15" position="-20 35 -24"></a-entity>
+    <a-entity light="type: ambient; color: #bce5ff; intensity: 0.75"></a-entity>
+    <a-entity id="world"></a-entity>
+    <a-entity id="objects"></a-entity>
+    <a-entity id="player" position="0 0 0">
+      <a-entity id="creeper" gltf-model="#creeperAsset" scale="0.085 0.085 0.085" rotation="0 180 0"></a-entity>
+    </a-entity>
+    <a-entity id="camera" camera="active: true; fov: 75" look-controls="enabled: false" position="0 2.4 6"></a-entity>
+  </a-scene>
+  <script>
+  (() => {
+    'use strict';
+    const scene=document.getElementById('scene');
+    const world=document.getElementById('world');
+    const objects=document.getElementById('objects');
+    const player=document.getElementById('player');
+    const creeper=document.getElementById('creeper');
+    const camEl=document.getElementById('camera');
+    const THREE=AFRAME.THREE;
+    const keys=new Set();
+    const state={running:false,first:false,x:0,y:0,z:0,pitch:0,yaw:0,roll:0};
+    let worldReady=false,previous=0,drag=false,px=0,py=0;
+    const blocks=new Map(), crystals=[], goal={x:-21,z:-19,mesh:null,lit:false},solidBoxes=[];
+    let collected=0, win=false, messageUntil=0;
+    const floorKey=(x,z)=>`${x},${z}`;
+    function blockAt(x,y,z){const key=floorKey(x,z);if(!blocks.has(key))blocks.set(key,[]);blocks.get(key).push(y);}
+    const crystalSpots=[[9,0,8],[16,0,-7],[-12,0,12],[-19,0,-12],[5,0,-20],[23,0,19]];
+    function safeHeight(x,z){return height(Math.round(x),Math.round(z));}
+    function blocked(x,y,z){
+      const radius=.38, bodyTop=y+1.65;
+      if(Math.abs(x)>33.7||Math.abs(z)>33.7)return true;
+      // The Minecraft-like floor is a solid stepped heightfield.
+      const samples=[[x,z],[x-radius,z],[x+radius,z],[x,z-radius],[x,z+radius]];
+      for(const [sx,sz] of samples)if(y<safeHeight(sx,sz)-.04)return true;
+      // Tree trunk and leaf voxels are collidable 1x1x1 cubes.
+      for(let i=Math.floor(x-radius-.5);i<=Math.ceil(x+radius+.5);i++)for(let k=Math.floor(z-radius-.5);k<=Math.ceil(z+radius+.5);k++){
+        const columns=blocks.get(floorKey(i,k));if(!columns)continue;
+        const nearestX=Math.max(i-.5,Math.min(x,i+.5));
+        const nearestZ=Math.max(k-.5,Math.min(z,k+.5));
+        if((nearestX-x)**2+(nearestZ-z)**2>=radius*radius)continue;
+        for(const cy of columns)if(bodyTop>cy-.5+.02&&y<cy+.5-.02)return true;
+      }
+      // The obsidian-like frame is solid; only the portal opening is passable.
+      for(const b of solidBoxes){
+        const closestX=Math.max(b.x-b.sx/2,Math.min(x,b.x+b.sx/2));
+        const closestZ=Math.max(b.z-b.sz/2,Math.min(z,b.z+b.sz/2));
+        if((x-closestX)**2+(z-closestZ)**2<radius**2&&bodyTop>b.y-b.sy/2&&y<b.y+b.sy/2)return true;
+      }
+      return false;
+    }
+    function attemptMove(dx,dy,dz){
+      const pos=player.object3D.position;
+      // Axis-by-axis movement makes the character slide along walls.
+      if(!blocked(pos.x+dx,pos.y,pos.z))pos.x+=dx;
+      if(!blocked(pos.x,pos.y,pos.z+dz))pos.z+=dz;
+      if(!blocked(pos.x,pos.y+dy,pos.z))pos.y+=dy;
+      // Never fall through the ground while the 6DoF flight controller is active.
+      pos.y=Math.max(pos.y,safeHeight(pos.x,pos.z));
+    }
+    function showNotice(str){document.getElementById('notice').textContent=str;messageUntil=performance.now()+3000;}
+    function createObjects(){
+      const THREE=AFRAME.THREE, root=objects.object3D;
+      const gemGeo=new THREE.OctahedronGeometry(.55,0);
+      for(const [x,_,z] of crystalSpots){
+        const y=safeHeight(x,z)+2.2;
+        const core=new THREE.Mesh(gemGeo,new THREE.MeshStandardMaterial({color:0x71ecff,emissive:0x24bedd,emissiveIntensity:1.2,roughness:.2}));
+        const ring=new THREE.Mesh(new THREE.TorusGeometry(.87,.075,7,24),new THREE.MeshBasicMaterial({color:0xffea78}));
+        const group=new THREE.Group();group.add(core);group.add(ring);group.position.set(x,y,z);root.add(group);
+        crystals.push({x,y,z,group,core,ring,done:false});
+      }
+      const portal=new THREE.Group();portal.position.set(goal.x,safeHeight(goal.x,goal.z),goal.z);
+      const stone=new THREE.MeshLambertMaterial({color:0x352b54});
+      const addBox=(x,y,z,sx,sy,sz,mat)=>{
+        const b=new THREE.Mesh(new THREE.BoxGeometry(sx,sy,sz),mat);b.position.set(x,y,z);portal.add(b);
+        solidBoxes.push({x:goal.x+x,y:portal.position.y+y,z:goal.z+z,sx,sy,sz});
+      };
+      addBox(-1.5,2.6,0,.65,5.2,.75,stone);addBox(1.5,2.6,0,.65,5.2,.75,stone);addBox(0,5.05,0,3.65,.7,.75,stone);
+      const plane=new THREE.Mesh(new THREE.PlaneGeometry(2.65,4.6),new THREE.MeshBasicMaterial({color:0x50316f,transparent:true,opacity:.23,side:THREE.DoubleSide,depthWrite:false}));plane.position.y=2.5;portal.add(plane);goal.mesh=plane;
+      root.add(portal);
+    }
+    function updateMission(now){
+      const pos=player.object3D.position;
+      for(const c of crystals){
+        if(c.done)continue;
+        c.group.rotation.y+=.013;
+        c.core.rotation.x+=.018;
+        c.group.position.y=c.y+Math.sin(now*.002+c.x)*.23;
+        if(Math.hypot(pos.x-c.x,pos.y+1-c.group.position.y,pos.z-c.z)<1.65){
+          c.done=true;c.group.visible=false;collected++;
+          showNotice(`✨ Кристал зібрано! ${collected} з ${crystals.length}`);
+          if(collected===crystals.length){goal.lit=true;goal.mesh.material.opacity=.86;goal.mesh.material.color.setHex(0xb946fd);showNotice('Портал активовано! Шукай фіолетову рамку.');}
+        }
+      }
+      const dest=goal.lit?goal:crystals.filter(c=>!c.done).sort((a,b)=>Math.hypot(pos.x-a.x,pos.z-a.z)-Math.hypot(pos.x-b.x,pos.z-b.z))[0];
+      const dx=dest.x-pos.x,dz=dest.z-pos.z,dist=Math.hypot(dx,dz);
+      const dir=Math.atan2(dx,-dz)*180/Math.PI;
+      let rel=((dir+state.yaw+540)%360)-180;
+      const arrow=Math.abs(rel)<22?'↑':Math.abs(rel)>157?'↓':rel>0?'→':'←';
+      document.getElementById('progress').textContent=`Кристали: ${collected} / ${crystals.length}`;
+      document.getElementById('objective').textContent=goal.lit?`🟣 Портал ${Math.round(dist)} м ${arrow} · лети до рамки`:`💎 Найближчий кристал ${Math.round(dist)} м ${arrow} · висота ${dest.y.toFixed(1)} м`;
+      if(messageUntil&&now>messageUntil){document.getElementById('notice').textContent='Колізії: земля, дерева, межі світу.';messageUntil=0;}
+      if(goal.lit&&!win&&dist<1.25&&pos.y<safeHeight(goal.x,goal.z)+4.5){
+        win=true;state.running=false;document.getElementById('finish').style.display='grid';
+      }
+    }
+    function restart(){
+      for(const c of crystals){c.done=false;c.group.visible=true;}
+      collected=0;win=false;goal.lit=false;goal.mesh.material.opacity=.23;goal.mesh.material.color.setHex(0x50316f);
+      state.x=state.y=state.z=state.pitch=state.yaw=state.roll=0;
+      player.object3D.position.set(0,0,0);
+      keys.clear();state.running=true;document.getElementById('finish').style.display='none';
+      showNotice('Нова гра: збери 6 кристалів!');updateHud();
+    }
+    document.getElementById('resetGame').addEventListener('click',restart);
+    document.getElementById('again').addEventListener('click',restart);
+    const rad=Math.PI/180;
+    const clamp=(n,min,max)=>Math.min(max,Math.max(min,n));
+    const seed=(x,z)=>{const k=Math.sin(x*127.1+z*311.7)*43758.5453;return k-Math.floor(k)};
+    const height=(x,z)=>{
+      if(Math.abs(x)<7&&Math.abs(z)<7)return 0;
+      const h=Math.sin(x*.23)*1.2+Math.cos(z*.19)*1.2+Math.sin((x+z)*.12);
+      return Math.max(-2,Math.min(4,Math.round(h)));
+    };
+    function buildWorld(){
+      if(worldReady)return;worldReady=true;
+      const groups={grass:[],dirt:[],stone:[],wood:[],leaf:[],sand:[],cloud:[]};
+      const add=(name,x,y,z,sx=1,sy=1,sz=1)=>groups[name].push([x,y,z,sx,sy,sz]);
+      const R=35;
+      for(let x=-R;x<=R;x++)for(let z=-R;z<=R;z++){
+        const h=height(x,z);const sandy=height(x,z)<=-2;
+        add(sandy?'sand':'grass',x,h-.5,z);
+        add('dirt',x,h-1.5,z);
+        if(h>0)add('stone',x,h-2.5,z);
+        const chance=seed(x,z);
+        if(chance>.989&&Math.abs(x)>9&&Math.abs(z)>8&&h>=-1&&x>-R+4&&x<R-4&&z>-R+4&&z<R-4){
+          const trunk=3+Math.floor(seed(z,x)*2);
+          for(let j=0;j<trunk;j++){add('wood',x,h+j+.5,z);blockAt(x,h+j+.5,z);}
+          for(let dx=-2;dx<=2;dx++)for(let dz=-2;dz<=2;dz++)for(let dy=0;dy<=2;dy++){
+            if(Math.abs(dx)+Math.abs(dz)+(dy===2?1:0)>3)continue;
+            add('leaf',x+dx,h+trunk-.5+dy,z+dz);blockAt(x+dx,h+trunk-.5+dy,z+dz);
+          }
+        }
+      }
+      for(let i=0;i<22;i++){
+        const x=(seed(i,15)-.5)*105,z=(seed(i,72)-.5)*105,y=13+seed(i,41)*9;
+        add('cloud',x,y,z,5,1.2,2.7);add('cloud',x+2,y+.3,z,3,1.2,3);
+      }
+      const colors={grass:0x60a946,dirt:0x81512c,stone:0x81868b,wood:0x7f5a34,leaf:0x34843a,sand:0xcbb778,cloud:0xf7fcff};
+      const root=world.object3D;
+      const cube=new THREE.BoxGeometry(1,1,1);const dummy=new THREE.Object3D();
+      for(const [kind,items] of Object.entries(groups)){
+        const material=new THREE.MeshLambertMaterial({color:colors[kind],flatShading:true});
+        const mesh=new THREE.InstancedMesh(cube,material,items.length);
+        mesh.frustumCulled=false;
+        for(let i=0;i<items.length;i++){
+          const [x,y,z,sx,sy,sz]=items[i];dummy.position.set(x,y,z);dummy.scale.set(sx,sy,sz);dummy.updateMatrix();mesh.setMatrixAt(i,dummy.matrix);
+        }
+        mesh.instanceMatrix.needsUpdate=true;root.add(mesh);
+      }
+      createObjects();
+      // Decorative stone path and floating bright markers make spatial motion easier to see.
+      const pathMat=new THREE.MeshLambertMaterial({color:0x9ca4a0});
+      for(let i=-5;i<=5;i++){
+        const b=new THREE.Mesh(new THREE.BoxGeometry(.7,.08,.7),pathMat);
+        b.position.set(i,0.04,-4);root.add(b);
+      }
+    }
+    function updateHud(){
+      const label=state.first?'перша особа':'третя особа';
+      document.getElementById('status').textContent=`Камера: ${label} · X ${state.x.toFixed(1)} Y ${state.y.toFixed(1)} Z ${state.z.toFixed(1)} · Pitch ${Math.round(state.pitch)}° Yaw ${Math.round(state.yaw)}° Roll ${Math.round(state.roll)}°`;
+      document.getElementById('mode').textContent=state.first?'📷 1-ша особа (V)':'📷 3-тя особа (V)';
+    }
+    function toggleCamera(){state.first=!state.first;creeper.object3D.visible=!state.first;updateHud();}
+    function resetRotation(){state.pitch=state.roll=0;updateHud();}
+    document.getElementById('mode').addEventListener('click',toggleCamera);
+    document.getElementById('launch').addEventListener('click',()=>{
+      if(!worldReady)buildWorld();state.running=true;
+      document.getElementById('start').style.display='none';document.getElementById('hud').style.display='block';updateHud();
+    });
+    document.addEventListener('keydown',e=>{
+      if(['Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code))e.preventDefault();
+      if(!keys.has(e.code)&&e.code==='KeyV'&&state.running)toggleCamera();
+      if(!keys.has(e.code)&&e.code==='KeyR')resetRotation();
+      keys.add(e.code);
+    });
+    document.addEventListener('keyup',e=>keys.delete(e.code));
+    window.addEventListener('blur',()=>keys.clear());
+    scene.addEventListener('mousedown',e=>{if(e.button===0){drag=true;px=e.clientX;py=e.clientY;}});
+    window.addEventListener('mouseup',()=>drag=false);
+    window.addEventListener('mousemove',e=>{
+      if(!drag||!state.running)return;
+      state.yaw-=(e.clientX-px)*.19;state.pitch=clamp(state.pitch-(e.clientY-py)*.19,-85,85);px=e.clientX;py=e.clientY;
+    });
+    // Mobile: dragging the scene rotates the character; touch buttons move it.
+    scene.addEventListener('touchstart',e=>{if(e.touches.length===1){drag=true;px=e.touches[0].clientX;py=e.touches[0].clientY;}},{passive:true});
+    scene.addEventListener('touchmove',e=>{if(!drag||!state.running||e.touches.length!==1)return;state.yaw-=(e.touches[0].clientX-px)*.19;state.pitch=clamp(state.pitch-(e.touches[0].clientY-py)*.19,-85,85);px=e.touches[0].clientX;py=e.touches[0].clientY;},{passive:true});
+    scene.addEventListener('touchend',()=>drag=false);
+    document.querySelectorAll('[data-key]').forEach(b=>{
+      const key=b.dataset.key;
+      b.addEventListener('pointerdown',e=>{e.preventDefault();b.setPointerCapture(e.pointerId);if(key==='KeyV')toggleCamera();else keys.add(key);});
+      for(const t of ['pointerup','pointercancel','lostpointercapture'])b.addEventListener(t,()=>keys.delete(key));
+    });
+    const tmpEuler=new THREE.Euler(),quat=new THREE.Quaternion(),tmpVec=new THREE.Vector3();
+    function frame(t){
+      requestAnimationFrame(frame);
+      const dt=Math.min((t-(previous||t))/1000,.06);previous=t;
+      if(!state.running)return;
+      const move=dt*5.2,turn=dt*72;
+      // Conceptual coordinate system: X=forward, Y=right, Z=up.
+      // Three.js world representation: forward=-worldZ, right=worldX, up=worldY.
+      const f=Number(keys.has('KeyW'))-Number(keys.has('KeyS'));
+      const r=Number(keys.has('KeyD'))-Number(keys.has('KeyA'));
+      const u=Number(keys.has('Space'))-Number(keys.has('ShiftLeft')||keys.has('ShiftRight'));
+      const normal=Math.max(1,Math.hypot(f,r,u));
+      const forward=f/normal*move,right=r/normal*move,up=u/normal*move;
+      const yaw=state.yaw*rad;
+      // Status coordinates are updated after collisions using actual world positions.
+      // Free flying: movement follows yaw + pitch, so the player can move in all 3 directions.
+      const cp=Math.cos(state.pitch*rad),sp=Math.sin(state.pitch*rad);
+      const dx=(-Math.sin(yaw)*cp*forward+Math.cos(yaw)*right);
+      const dz=(-Math.cos(yaw)*cp*forward-Math.sin(yaw)*right);
+      const dy=(sp*forward+up);
+      attemptMove(dx,dy,dz);
+      player.object3D.position.y=Math.min(player.object3D.position.y,35);
+      state.x=-player.object3D.position.z;state.y=player.object3D.position.x;state.z=player.object3D.position.y;
+      if(keys.has('ArrowUp'))state.pitch=clamp(state.pitch+turn,-85,85);
+      if(keys.has('ArrowDown'))state.pitch=clamp(state.pitch-turn,-85,85);
+      if(keys.has('ArrowLeft'))state.yaw+=turn;
+      if(keys.has('ArrowRight'))state.yaw-=turn;
+      if(keys.has('KeyQ'))state.roll=clamp(state.roll+turn,-180,180);
+      if(keys.has('KeyE'))state.roll=clamp(state.roll-turn,-180,180);
+      // XYZ relative rotations use yaw around vertical, pitch around sideways, roll around forward.
+      tmpEuler.set(state.pitch*rad,-state.yaw*rad,state.roll*rad,'YXZ');quat.setFromEuler(tmpEuler);
+      const obj=player.object3D;
+      obj.quaternion.copy(quat);
+      const camera=camEl.object3D;
+      if(state.first){
+        tmpVec.set(0,1.85,-.12).applyQuaternion(quat).add(obj.position);
+        camera.position.lerp(tmpVec,Math.min(1,dt*16));
+      }else{
+        tmpVec.set(0,2.4,6).applyQuaternion(quat).add(obj.position);
+        camera.position.lerp(tmpVec,Math.min(1,dt*9));
+      }
+      camera.quaternion.copy(quat);
+      updateMission(t);
+      if(Math.floor(t/120)!==Math.floor((t-dt*1000)/120))updateHud();
+    }
+    scene.addEventListener('loaded',()=>{requestAnimationFrame(frame);});
+    // Graceful message when the user opened a file without uploading the model.
+    creeper.addEventListener('model-error',()=>{
+      document.getElementById('status').textContent='Не вдалося завантажити assets/creeper.glb — перевір структуру папок GitHub.';
+    });
+  })();
+  </script>
+</body>
+</html>
