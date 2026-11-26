@@ -268,8 +268,8 @@
       // Conceptual coordinate system: X=forward, Y=right, Z=up.
       // Three.js world representation: forward=-worldZ, right=worldX, up=worldY.
       // Reverse the two inverted movement axes so W/A/S/D match the intended controls.
-      const f=Number(keys.has('KeyS'))-Number(keys.has('KeyW'));
-      const r=Number(keys.has('KeyA'))-Number(keys.has('KeyD'));
+      const f=Number(keys.has('KeyW'))-Number(keys.has('Keys'));
+      const r=Number(keys.has('KeyD'))-Number(keys.has('KeyA'));
       const u=Number(keys.has('Space'))-Number(keys.has('ShiftLeft')||keys.has('ShiftRight'));
       const normal=Math.max(1,Math.hypot(f,r,u));
       const forward=f/normal*move,right=r/normal*move,up=u/normal*move;
