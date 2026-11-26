@@ -22,6 +22,7 @@
     #mission{position:absolute;right:14px;top:68px;width:min(315px,calc(100vw - 28px));background:#071610d9;border:1px solid #7bcf7c88;padding:12px 14px;border-radius:9px;font-size:13px;line-height:1.5}
     #mission strong{color:#b1ff91}#objective{margin:7px 0;color:#efffe6}#progress{color:#b8e9ff;font-weight:700}#notice{color:#ffefa1;min-height:20px}
     #resetGame{pointer-events:auto;margin-top:8px;padding:7px 11px;background:#2b5f37;color:white;border:1px solid #91d984}
+    #health{color:#ffb4ad;font-weight:800;margin-top:6px}#hitFlash{position:fixed;inset:0;background:#ff2727;opacity:0;pointer-events:none;z-index:14;transition:opacity .17s}
     #finish{display:none;position:fixed;z-index:30;inset:0;background:#091c18d9;place-items:center;text-align:center;padding:20px}
     #finish>div{padding:30px;background:#112c1d;border:2px solid #a3ef76;border-radius:18px;max-width:430px}#finish h2{color:#b5ff89}
     #again{padding:12px 23px;background:#91e77d;color:#18321a}
@@ -43,7 +44,7 @@
   <div id="hud">
     <div id="controls"><strong>Керування 6DoF</strong><div>W / S — вперед / назад (X)</div><div>A / D — ліворуч / праворуч (Y)</div><div>Пробіл / Shift — вгору / вниз (Z)</div><div>↑ / ↓ — Pitch; ← / → — Yaw</div><div>Q / E — Roll (нахил убік)</div><div>Миша + утримання кнопки — огляд</div><div>V — камера 1-ї / 3-ї особи · R — скинути нахили</div><div>Кристали — торкнися, портал — фінальна ціль</div><div id="status">Камера: третя особа</div></div>
     <button id="mode">📷 3-тя особа (V)</button>
-    <div id="mission"><strong>⚡ МІСІЯ: ЕНЕРГІЯ ПОРТАЛУ</strong><div id="progress">Кристали: 0 / 6</div><div id="objective">Шукай сяючі кристали поблизу!</div><div id="notice">Дерева, рельєф та межі світу мають колізії.</div><button id="resetGame">↻ Почати заново</button></div>
+    <div id="mission"><strong>⚡ МІСІЯ: ЕНЕРГІЯ ПОРТАЛУ</strong><div id="progress">Кристали: 0 / 6</div><div id="health">❤️❤️❤️ · Зомбі патрулює світ</div><div id="objective">Шукай сяючі кристали поблизу!</div><div id="notice">Дерева, рельєф та межі світу мають колізії.</div><button id="resetGame">↻ Почати заново</button></div>
     <div id="hints">6DoF • Збери 6 кристалів → увійди в портал • Колізії активні</div>
     <div id="touch"><div class="touch-cluster">
       <button class="blank"></button><button data-key="KeyW">▲</button><button class="blank"></button>
@@ -54,13 +55,15 @@
       <button data-key="ArrowDown">P−</button><button data-key="KeyE">R+</button><button data-key="ArrowRight">Y+</button>
     </div></div>
   </div>
-  <div id="finish"><div><h2>🏆 ПОРТАЛ ЗАПУЩЕНО!</h2><p>Ти зібрав усі 6 кристалів і виконав місію, використовуючи 6 ступенів свободи.</p><button id="again">▶ Грати ще раз</button></div></div>
+  <div id="hitFlash"></div>
+  <div id="finish"><div><h2 id="finishTitle">🏆 ПОРТАЛ ЗАПУЩЕНО!</h2><p id="finishText">Ти зібрав усі 6 кристалів і виконав місію, використовуючи 6 ступенів свободи.</p><button id="again">▶ Грати ще раз</button></div></div>
   <a-scene id="scene" embedded vr-mode-ui="enabled: true" renderer="antialias: true; colorManagement: true" background="color: #87c9ff" fog="type: linear; color: #9ed2fb; near: 30; far: 83" loading-screen="enabled: false">
-    <a-assets timeout="20000"><a-asset-item id="creeperAsset" src="./assets/creeper.glb"></a-asset-item></a-assets>
+    <a-assets timeout="20000"><a-asset-item id="creeperAsset" src="./assets/creeper.glb"></a-asset-item><a-asset-item id="zombieAsset" src="./assets/zombie/scene.gltf"></a-asset-item></a-assets>
     <a-entity id="sun" light="type: directional; color: #fff4d1; intensity: 1.15" position="-20 35 -24"></a-entity>
     <a-entity light="type: ambient; color: #bce5ff; intensity: 0.75"></a-entity>
     <a-entity id="world"></a-entity>
     <a-entity id="objects"></a-entity>
+    <a-entity id="zombie" gltf-model="#zombieAsset" position="8 1 8" rotation="0 180 0"></a-entity>
     <a-entity id="player" position="0 0 0">
       <a-entity id="creeper" gltf-model="#creeperAsset" scale="0.085 0.085 0.085" rotation="0 180 0"></a-entity>
     </a-entity>
@@ -75,12 +78,66 @@
     const player=document.getElementById('player');
     const creeper=document.getElementById('creeper');
     const camEl=document.getElementById('camera');
+    const zombieEl=document.getElementById('zombie');
     const THREE=AFRAME.THREE;
     const keys=new Set();
     const state={running:false,first:false,x:0,y:0,z:0,pitch:0,yaw:0,roll:0};
     let worldReady=false,previous=0,drag=false,px=0,py=0;
     const blocks=new Map(), crystals=[], goal={x:-21,z:-19,mesh:null,lit:false},solidBoxes=[];
     let collected=0, win=false, messageUntil=0;
+    let lives=3, lastHit=-1e9, hitFlashUntil=0;
+    const zombieAI={x:8,z:8,y:0,mode:'patrol',target:0,patrolTimer:0,animMixer:null};
+    const zombiePatrol=[[8,8],[15,10],[13,1],[7,-3],[8,8]];
+    function updateHealth(){document.getElementById('health').textContent='❤️'.repeat(lives)+'🖤'.repeat(3-lives)+' · Зомбі: '+(zombieAI.mode==='chase'?'переслідує!':'патрулює');}
+    function finishGame(victory){
+      win=true;state.running=false;
+      document.getElementById('finishTitle').textContent=victory?'🏆 ПОРТАЛ ЗАПУЩЕНО!':'💀 ЗОМБІ ПЕРЕМІГ!';
+      document.getElementById('finishText').textContent=victory?'Ти зібрав усі кристали та втік через портал!':'Усі 3 життя втрачено. Спробуй облетіти зомбі та зібрати кристали.';
+      document.getElementById('finish').style.display='grid';
+      keys.clear();
+    }
+    function updateZombie(dt,now){
+      const e=zombieEl.object3D;
+      const pos=player.object3D.position;
+      const dist=Math.hypot(pos.x-zombieAI.x,pos.z-zombieAI.z);
+      zombieAI.mode=dist<17?'chase':'patrol';
+      let tx,tz;
+      if(zombieAI.mode==='chase'){tx=pos.x;tz=pos.z;}
+      else{
+        const p=zombiePatrol[zombieAI.target];tx=p[0];tz=p[1];
+        if(Math.hypot(tx-zombieAI.x,tz-zombieAI.z)<1.2)zombieAI.target=(zombieAI.target+1)%zombiePatrol.length;
+      }
+      const vx=tx-zombieAI.x,vz=tz-zombieAI.z,len=Math.hypot(vx,vz);
+      if(len>.2){
+        const step=Math.min(len,(zombieAI.mode==='chase'?2.65:1.55)*dt);
+        const mx=vx/len*step,mz=vz/len*step;
+        // Use the same world collision detector as the Creeper.
+        const tryWalk=(nx,nz)=>{
+          const ground=safeHeight(nx,nz);
+          if(ground-zombieAI.y>1.1||blocked(nx,ground,nz))return false;
+          zombieAI.x=nx;zombieAI.z=nz;zombieAI.y=ground;return true;
+        };
+        if(!tryWalk(zombieAI.x+mx,zombieAI.z+mz)){
+          if(!tryWalk(zombieAI.x+mx,zombieAI.z))tryWalk(zombieAI.x,zombieAI.z+mz);
+        }
+        e.rotation.y=Math.atan2(vx,vz);
+      }
+      zombieAI.y=safeHeight(zombieAI.x,zombieAI.z);
+      e.position.set(zombieAI.x,zombieAI.y,zombieAI.z);
+      // Simple walking bob, only when the model is loaded and scaled.
+      if(e.userData.visualRoot)e.userData.visualRoot.position.y=e.userData.baseY+(len>.2?Math.sin(now*.009)*.055:0);
+      if(zombieAI.animMixer)zombieAI.animMixer.update(dt);
+      // 3D attack distance: don't hit the player while flying far overhead.
+      const realDistance=Math.hypot(pos.x-zombieAI.x,pos.z-zombieAI.z,(pos.y+1)-(zombieAI.y+1.1));
+      if(realDistance<1.65&&now-lastHit>1700){
+        lastHit=now;lives--;hitFlashUntil=now+260;
+        document.getElementById('hitFlash').style.opacity='.24';
+        showNotice(lives>0?'🧟 Зомбі атакував! Уникай наступного удару.':'🧟 Зомбі відібрав останнє життя!');
+        if(lives<=0)finishGame(false);
+      }
+      if(hitFlashUntil&&now>hitFlashUntil){document.getElementById('hitFlash').style.opacity='0';hitFlashUntil=0;}
+      updateHealth();
+    }
     const floorKey=(x,z)=>`${x},${z}`;
     function blockAt(x,y,z){const key=floorKey(x,z);if(!blocks.has(key))blocks.set(key,[]);blocks.get(key).push(y);}
     const crystalSpots=[[9,0,8],[16,0,-7],[-12,0,12],[-19,0,-12],[5,0,-20],[23,0,19]];
@@ -159,12 +216,14 @@
       document.getElementById('objective').textContent=goal.lit?`🟣 Портал ${Math.round(dist)} м ${arrow} · лети до рамки`:`💎 Найближчий кристал ${Math.round(dist)} м ${arrow} · висота ${dest.y.toFixed(1)} м`;
       if(messageUntil&&now>messageUntil){document.getElementById('notice').textContent='Колізії: земля, дерева, межі світу.';messageUntil=0;}
       if(goal.lit&&!win&&dist<1.25&&pos.y<safeHeight(goal.x,goal.z)+4.5){
-        win=true;state.running=false;document.getElementById('finish').style.display='grid';
+        finishGame(true);
       }
     }
     function restart(){
       for(const c of crystals){c.done=false;c.group.visible=true;}
-      collected=0;win=false;goal.lit=false;goal.mesh.material.opacity=.23;goal.mesh.material.color.setHex(0x50316f);
+      collected=0;win=false;lives=3;lastHit=-1e9;hitFlashUntil=0;document.getElementById('hitFlash').style.opacity='0';
+      zombieAI.x=8;zombieAI.z=8;zombieAI.y=safeHeight(8,8);zombieAI.target=0;zombieAI.mode='patrol';updateHealth();
+      goal.lit=false;goal.mesh.material.opacity=.23;goal.mesh.material.color.setHex(0x50316f);
       state.x=state.y=state.z=state.pitch=state.yaw=state.roll=0;
       player.object3D.position.set(0,0,0);
       keys.clear();state.running=true;document.getElementById('finish').style.display='none';
@@ -267,8 +326,9 @@
       const move=dt*5.2,turn=dt*72;
       // Conceptual coordinate system: X=forward, Y=right, Z=up.
       // Three.js world representation: forward=-worldZ, right=worldX, up=worldY.
-      const f=Number(keys.has('KeyW'))-Number(keys.has('KeyS'));
-      const r=Number(keys.has('KeyD'))-Number(keys.has('KeyA'));
+      // Reverse the two inverted movement axes so W/A/S/D match the intended controls.
+      const f=Number(keys.has('KeyS'))-Number(keys.has('KeyW'));
+      const r=Number(keys.has('KeyA'))-Number(keys.has('KeyD'));
       const u=Number(keys.has('Space'))-Number(keys.has('ShiftLeft')||keys.has('ShiftRight'));
       const normal=Math.max(1,Math.hypot(f,r,u));
       const forward=f/normal*move,right=r/normal*move,up=u/normal*move;
@@ -301,9 +361,32 @@
         camera.position.lerp(tmpVec,Math.min(1,dt*9));
       }
       camera.quaternion.copy(quat);
-      updateMission(t);
+      updateZombie(dt,t);
+      if(state.running)updateMission(t);
       if(Math.floor(t/120)!==Math.floor((t-dt*1000)/120))updateHud();
     }
+    zombieEl.addEventListener('model-loaded',()=>{
+      const model=zombieEl.getObject3D('mesh');if(!model)return;
+      // Fit downloaded glTF model to about 2.1m high, preserve proportions and
+      // place the model's feet at the entity's local y=0 regardless of its origin.
+      const entity=zombieEl.object3D;
+      const savedPosition=entity.position.clone(), savedRotation=entity.rotation.clone();
+      entity.position.set(0,0,0);entity.rotation.set(0,0,0);entity.updateMatrixWorld(true);
+      const bounds=new THREE.Box3().setFromObject(model);
+      entity.position.copy(savedPosition);entity.rotation.copy(savedRotation);entity.updateMatrixWorld(true);
+      const size=new THREE.Vector3();bounds.getSize(size);
+      if(size.y<.001)return;
+      const center=new THREE.Vector3();bounds.getCenter(center);
+      const scale=2.1/size.y;
+      const root=new THREE.Group();
+      const originalParent=model.parent;
+      originalParent.remove(model);root.add(model);zombieEl.object3D.add(root);
+      model.scale.multiplyScalar(scale);
+      root.position.set(-center.x*scale,-bounds.min.y*scale,-center.z*scale);
+      zombieEl.object3D.userData.visualRoot=root;
+      zombieEl.object3D.userData.baseY=root.position.y;
+    });
+    zombieEl.addEventListener('model-error',()=>showNotice('Не вдалося завантажити зомбі: перевір assets/zombie/scene.gltf та текстури.'));
     scene.addEventListener('loaded',()=>{requestAnimationFrame(frame);});
     // Graceful message when the user opened a file without uploading the model.
     creeper.addEventListener('model-error',()=>{
